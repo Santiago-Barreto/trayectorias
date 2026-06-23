@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+
+# Salidas generadas (se recrean con el notebook o el script)
+trayectorias_imposibles_por_region.csv

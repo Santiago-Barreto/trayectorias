@@ -1,0 +1,8 @@
+earthengine-api>=0.1.370
+geemap
+pandas
+openpyxl
+matplotlib
+numpy
+jupyter
+ipywidgets
