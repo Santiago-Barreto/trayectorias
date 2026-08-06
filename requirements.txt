@@ -6,3 +6,4 @@ matplotlib
 numpy
 jupyter
 ipywidgets
+python-pptx

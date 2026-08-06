@@ -6,3 +6,13 @@ Thumbs.db
 
 # Salidas generadas (se recrean con el notebook o el script)
 trayectorias_imposibles_por_region.csv
+anomalias_pct_por_anio.csv
+_ppt_figs/
+_test_figs/
+presentacion_trayectorias.pptx
+_map_cell.py
+_dump*.py
+_patch*.py
+_check*.py
+_rewrite*.py
+_fix*.py
