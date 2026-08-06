@@ -1,23 +1,30 @@
 # Trayectorias
 
-Detección y corrección de **bosque aislado** (clase 3) y plantaciones cortas (9, 35, 74) en MapBiomas Colombia.
+Herramienta para detectar y corregir trayectorias temporales anómalas de **bosque** (clase 3) y **plantaciones** (9, 35, 74) en la colección MapBiomas Colombia.
 
-## Archivos
+## Contenido
 
-| Archivo | Uso |
-|---------|-----|
-| `Trayectorias_sos.ipynb` | Flujo principal (GEE, mapa, análisis) |
-| `analisis_nacional.py` | Gráficos nacional / regional |
-| `analisis_extremos.py` | Pico 2023–2025 (1 año vs 2 años) |
-| `metodologia_correccion.txt` | Metodología (sin código) |
-| `regiones.xlsx` | Lista de regiones |
-| `leyenda_coleccion3.json` | Clases y colores LULC |
+- `Trayectorias_sos.ipynb` — flujo principal
+- `analisis_nacional.py` — análisis nacional y regional
+- `analisis_extremos.py` — análisis del final de la serie temporal
+- `metodologia_correccion.txt` — descripción del método
+- `regiones.xlsx` — regiones de clasificación
+- `leyenda_coleccion3.json` — leyenda LULC
+- `requirements.txt` — dependencias
 
-## Cómo correr
+## Uso
 
 ```bash
 pip install -r requirements.txt
 jupyter notebook Trayectorias_sos.ipynb
 ```
 
-En config: `REGION_ID`, `MODO_CORRECCION` (`bosque` / `todas`) y `MAPA_ANOMALIAS` (`bosque` / `bosque_plantacion`). Ejecutar las celdas en orden.
+Parámetros principales en la celda de configuración:
+
+| Parámetro | Valores |
+|-----------|---------|
+| `REGION_ID` | `None` (nacional) o ID de región |
+| `MODO_CORRECCION` | `bosque` \| `todas` |
+| `MAPA_ANOMALIAS` | `bosque` \| `bosque_plantacion` |
+
+Ejecutar las celdas en orden.

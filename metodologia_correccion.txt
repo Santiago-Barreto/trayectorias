@@ -1,213 +1,128 @@
-METODOLOGÍA DE DETECCIÓN Y CORRECCIÓN DE TRAYECTORIAS SOSPECHOSAS
-MapBiomas Colombia — Cobertura y uso del suelo (serie anual)
+METODOLOGÍA
+Detección y corrección de trayectorias temporales — MapBiomas Colombia
 ================================================================================
 
-1. Propósito
-------------
-La serie anual de cobertura/uso del suelo puede presentar píxeles con
-transiciones temporales poco plausibles, en especial:
+1. Objetivo
+-----------
+Identificar y corregir píxeles con transiciones temporales poco coherentes en la
+serie anual de cobertura y uso del suelo, en particular:
 
-  • Apariciones cortas de bosque (clase 3) entre coberturas no forestales.
-  • Apariciones cortas de plantaciones o cultivos leñosos (clases 9, 35 y 74)
-    embebidas en bosque continuo.
-
-El objetivo es detectar esas trayectorias sospechosas y corregirlas de forma
-automática y reproducible, manteniendo la coherencia temporal de la serie.
+  • Bosque (clase 3) presente solo durante 1 o 2 años consecutivos.
+  • Plantaciones o cultivos leñosos (clases 9, 35, 74) presentes solo durante
+    1 o 2 años dentro de un bloque de bosque continuo.
 
 
-2. Datos de entrada
--------------------
-  • Serie anual de clasificación LULC a 30 m (aprox. 1985–2025).
-  • Clase de interés principal: Bosque = 3.
-  • Clases de plantación / cultivo leñoso tratadas de forma especial:
-      – 9  Silvicultura
-      – 35 Palma aceitera
-      – 74 Plátano y banano
+2. Datos
+--------
+  • Serie anual LULC a 30 m (aproximadamente 1985–2025).
+  • Clase bosque: 3.
+  • Clases de plantación consideradas: 9 (silvicultura), 35 (palma aceitera),
+    74 (plátano y banano).
 
-La unidad de análisis es el píxel. Para cada año se observa una ventana
-temporal hacia atrás y hacia adelante.
+La unidad de análisis es el píxel, evaluado con una ventana temporal hacia
+atrás y hacia adelante.
 
 
-3. Qué se considera “sospechoso”
---------------------------------
+3. Criterios de detección
+-------------------------
 
 3.1 Bosque aislado
-  Se marca como sospechoso el bosque que no persiste lo suficiente en el
-  tiempo. En la práctica se usan dos patrones centrales:
+  a) 1 año:   no-bosque → bosque → no-bosque
+  b) 2 años:  no-bosque → bosque → bosque → no-bosque
 
-  a) Bosque de 1 año
-     … → no-bosque → BOSQUE → no-bosque → …
-     El año central es bosque; el anterior y el siguiente no lo son.
-
-  b) Bosque de 2 años
-     … → no-bosque → BOSQUE → BOSQUE → no-bosque → …
-     Hay un bloque corto de exactamente dos años de bosque entre no-bosque.
-
-  Interpretación: el bosque “real” debería mantenerse al menos tres años
-  consecutivos. Uno o dos años sueltos suelen corresponder a confusión
-  espectral u otros artefactos de clasificación.
+  Un bosque se considera persistente cuando se mantiene al menos tres años
+  consecutivos.
 
 3.2 Plantación aislada entre bosque
-  Se marca como sospechosa la plantación (9, 35 o 74) que aparece de forma
-  corta rodeada de bosque:
+  a) 1 año:   bosque → plantación → bosque
+  b) 2 años:  bosque → plantación → plantación → bosque
 
-  a) 1 año:  bosque → PLANTACIÓN → bosque
-  b) 2 años: bosque → PLANTACIÓN → PLANTACIÓN → bosque
-
-  Interpretación: un parche corto de plantación dentro de un bloque
-  forestal continuo suele ser confusión bosque↔plantación, no un
-  establecimiento real de cultivo.
+  Plantación = clase 9, 35 o 74.
 
 
-4. Cómo se corrige el bosque aislado
-------------------------------------
-Cuando se detecta bosque aislado (1 o 2 años), ese(s) año(s) de bosque se
-reemplazan por otra clase. La regla de reemplazo es:
+4. Corrección de bosque aislado
+-------------------------------
+Los años de bosque aislado se reemplazan según:
 
-  1) Por defecto se copia la clase del año anterior (t−1).
-  2) Si el año siguiente (t+1) es plantación (9, 35 o 74), se usa esa
-     plantación en lugar del año anterior.
-  3) En el primer año de un bloque de dos años de bosque, si t+1 sigue
-     siendo bosque pero t+2 es plantación, se usa esa plantación.
+  1. Clase del año anterior (t−1), por defecto.
+  2. Si el año siguiente (t+1) es plantación (9, 35 o 74), se usa esa clase.
+  3. En el primer año de un bloque de dos años de bosque, si t+1 es bosque y
+     t+2 es plantación, se usa la plantación de t+2.
 
-Idea: si el falso bosque está “apoyado” contra una plantación vecina en el
-tiempo, se asume continuidad con la plantación; si no, se hereda la
-cobertura previa.
+En los extremos de la serie, cuando no existe ventana completa, solo se aplica
+el patrón de 1 año (no-bosque → bosque → no-bosque) con la misma regla de
+reemplazo.
 
-Casos especiales de borde temporal
-  En años extremos de la serie (donde no hay ventana completa de cinco años)
-  solo se aplica la forma simple de 1 año: no-bosque → bosque → no-bosque,
-  con la misma regla de reemplazo (priorizar plantación en t+1; si no, t−1).
-
-Ejemplos típicos
-  • 21-3-21     → el 3 se reemplaza (en general por 21).
-  • 9-9-9-3-3-9-9-9  → los 3 aislados pasan a 9 (plantación vecina).
-  • 35-3-21     → el 3 puede pasar a 35 si se prioriza t+1 plantación,
-                  o a 35/21 según la regla de vecinos aplicada.
+Ejemplos
+  • 21-3-21           → el bosque se reemplaza (habitualmente por 21).
+  • 9-9-9-3-3-9-9-9   → el bosque aislado pasa a 9.
+  • 3-3-3-9-9-3-3-3   → ver sección 5 (plantación aislada).
 
 
-5. Cómo se corrige la plantación aislada entre bosque
------------------------------------------------------
-Cuando se detecta plantación (9, 35 o 74) aislada 1–2 años entre bosque,
-esos años se reemplazan por bosque (clase 3).
+5. Corrección de plantación aislada entre bosque
+------------------------------------------------
+Los años de plantación (9, 35, 74) aislados entre bosque se reemplazan por
+bosque (clase 3).
 
 Ejemplo
   • 3-3-3-9-9-3-3-3  →  3-3-3-3-3-3-3-3
 
-No se “inventa” otra cobertura: el contexto es bosque a ambos lados, así
-que la corrección restaura continuidad forestal.
-
-Caso especial de borde
-  En 1986 y 2024 solo se corrige el patrón de 1 año:
-  bosque → plantación → bosque  →  bosque → bosque → bosque.
+En los extremos de la serie solo se aplica el patrón de 1 año:
+bosque → plantación → bosque.
 
 
-6. Orden de aplicación y pasadas
---------------------------------
-La corrección por defecto (modo “bosque”) alterna, en varias pasadas:
+6. Orden de aplicación
+----------------------
+En el modo de corrección por defecto (`bosque`) se alternan, en varias pasadas:
 
-  1) Corrección de falsos bosques.
-  2) Corrección de plantaciones aisladas entre bosque.
+  1. Corrección de bosque aislado.
+  2. Corrección de plantación aislada entre bosque.
 
-Se repite este ciclo (por defecto 2 pasadas) para resolver cadenas o
-casos que quedan residuales después del primer barrido.
-
-Esto permite tratar de forma coherente los dos sentidos de la confusión:
-
-  • Plantación con “islas” de bosque  → tiende a plantación continua.
-  • Bosque con “islas” de plantación → tiende a bosque continuo.
+El número de pasadas por defecto es 2.
 
 
-7. Modo opcional: corrección por matriz de importancia (todas las clases)
--------------------------------------------------------------------------
-Además del modo anterior, existe un modo más agresivo que rellena
-“huecos” temporales de cualquier clase según una jerarquía de prevalencia
-(inspirada en la Tabla 12 del ATBD de MapBiomas Colombia Col. 3,
-incluyendo excepciones de coberturas inundables).
+7. Modo opcional: matriz de importancia
+---------------------------------------
+Modo `todas`: además de la corrección bosque–plantación, se rellenan huecos
+temporales de cualquier clase según una jerarquía de prevalencia basada en el
+ATBD de MapBiomas Colombia Colección 3 (Tabla 12), con excepciones de
+coberturas inundables.
 
-Qué hace
-  Si una clase A aparece a ambos lados de un intervalo corto de otra(s)
-  clase(s), rellena el interior con A:
+Patrones de relleno
+  • A – X – A
+  • A – X – X – A
+  • A – X – X – X – A
 
-  • Ventana de 3 años:  A – X – A        →  A – A – A
-  • Ventana de 4 años:  A – X – X – A    →  A – A – A – A
-  • Ventana de 5 años:  A – X – X – X – A → A – A – A – A – A
+Las clases se aplican en orden inverso a su prioridad para resolver cascadas.
+La extensión hacia el primer o último año de la serie está desactivada por
+defecto.
 
-  Las clases se procesan en orden inverso a su prioridad, de modo que las
-  de mayor prevalencia “cierren” al final posibles cascadas.
-
-Qué no hace por defecto
-  La extensión de bordes al primer/último año de la serie está desactivada
-  (no se inventa continuidad fuera del periodo observado).
-
-Después de los huecos, se aplica igualmente el residual bosque↔plantación
-descrito en las secciones 4–6.
-
-Advertencia metodológica
-  Rellenar huecos en todas las clases puede borrar transiciones cortas
-  reales (por ejemplo un año de mosaico agrícola entre pastos). Por eso
-  el modo recomendado para trayectorias de bosque/plantación es el modo
-  “bosque”, no el de matriz completa.
+Este modo puede eliminar transiciones cortas reales entre clases no forestales.
+Para el enfoque bosque–plantación se utiliza el modo `bosque`.
 
 
-8. Qué NO se corrige (deliberadamente)
---------------------------------------
-  • Transiciones cortas entre clases agrícolas, mosaicos, herbáceas, etc.,
-    cuando no involucran el patrón de bosque aislado ni plantación aislada
-    entre bosque.
-  • Bloques de bosque de 3 o más años consecutivos (se consideran
-    persistencia válida).
-  • Plantaciones sostenidas en el tiempo, o plantaciones cortas que NO
-    estén rodeadas de bosque (pueden ser usos reales).
-  • Cambios legítimos de uso (deforestación, expansión agrícola, etc.)
-    que no caigan en los patrones de aislamiento definidos.
+8. Casos no corregidos
+----------------------
+  • Transiciones cortas que no corresponden a bosque aislado ni a plantación
+    aislada entre bosque.
+  • Bosque con persistencia de 3 o más años.
+  • Plantaciones persistentes, o plantaciones cortas no rodeadas de bosque.
+  • Cambios de uso que no cumplen los patrones anteriores.
 
 
-9. Visualización de trayectorias sospechosas
---------------------------------------------
-Para inspección, las anomalías se pueden mostrar en dos alcances:
+9. Visualización
+----------------
+Las anomalías pueden mostrarse como:
 
-  • Solo bosque aislado.
-  • Bosque aislado + plantación aislada entre bosque (9, 35, 74),
-    preferiblemente en capas separadas para distinguir:
-      – Bosque sospechoso
-      – Plantación sospechosa
+  • Solo bosque aislado, o
+  • Bosque aislado y plantación aislada entre bosque, en capas separadas.
 
-La tabla de trayectorias resume patrones del tipo:
-  clase(t−1) – clase(t) – clase(t+1) – clase(t+2)
-y los etiqueta como “bosque aislado 1/2 años”, “plantación aislada 1/2
-años” u otros casos a revisar.
+Los patrones se resumen como secuencia de cuatro clases:
+clase(t−1) – clase(t) – clase(t+1) – clase(t+2).
 
 
-10. Resumen operativo
----------------------
-Problema
-  Ruido temporal en la serie LULC, concentrado en confusiones de bosque
-  y de plantaciones leñosas.
+10. Referencia
+--------------
+MapBiomas Colombia, ATBD Colección 3 — jerarquías de integración (Tabla 12).
 
-Regla general
-  Persistencia mínima de bosque ≈ 3 años; plantaciones cortas dentro de
-  bosque continuo se revierten a bosque; bosques cortos se reasignan al
-  vecino temporal (priorizando plantación si aparece a continuación).
-
-Modo recomendado
-  Corrección bosque ↔ plantación (secciones 4–6), sin relleno generalizado
-  de huecos de todas las clases.
-
-Resultado
-  Serie anual más coherente temporalmente, con menos “parpadeos” de
-  bosque y plantación, sin alterar de forma sistemática otros cambios de
-  cobertura de corta duración.
-
-
-11. Referencias conceptuales
-----------------------------
-  • MapBiomas Colombia — ATBD Colección 3, jerarquías de integración
-    (Tabla 12) y excepciones de coberturas inundables, usadas solo en el
-    modo opcional de matriz de importancia.
-  • Principio de persistencia temporal del bosque y de coherencia
-    bosque–silvicultura/palma/banano en series anuales de teledetección.
-
-================================================================================
-Documento de metodología — Trayectorias sospechosas LULC (Colombia)
 ================================================================================
