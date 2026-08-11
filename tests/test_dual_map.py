@@ -66,8 +66,100 @@ def test_plantacion_antes_bosque_describe():
     print('OK regla plantación antes de bosque presente')
 
 
+def test_link_map_views_logic():
+    """Simula el enlace center/zoom del notebook (sin UI)."""
+    class FakeMap:
+        def __init__(self, center, zoom):
+            self.center = list(center)
+            self.zoom = float(zoom)
+            self._obs = []
+
+        def observe(self, handler, names=None):
+            self._obs.append((handler, names))
+
+        def _notify(self):
+            for handler, _names in self._obs:
+                handler({'type': 'change'})
+
+    view_lock = {'busy': False}
+
+    def link_map_views(src_map, dst_map):
+        if view_lock['busy']:
+            return
+        new_center = [float(src_map.center[0]), float(src_map.center[1])]
+        new_zoom = float(src_map.zoom)
+        old_center = [float(dst_map.center[0]), float(dst_map.center[1])]
+        old_zoom = float(dst_map.zoom)
+        if new_center == old_center and abs(new_zoom - old_zoom) < 1e-9:
+            return
+        view_lock['busy'] = True
+        try:
+            dst_map.center = new_center
+            dst_map.zoom = new_zoom
+            dst_map._notify()
+        finally:
+            view_lock['busy'] = False
+
+    m1 = FakeMap([4.5, -73.0], 6)
+    m2 = FakeMap([4.5, -73.0], 6)
+    m1.observe(lambda ch: link_map_views(m1, m2), names=['center', 'zoom'])
+    m2.observe(lambda ch: link_map_views(m2, m1), names=['center', 'zoom'])
+
+    m1.center = [5.2, -74.1]
+    m1._notify()
+    assert m2.center == [5.2, -74.1]
+    m1.zoom = 9.0
+    m1._notify()
+    assert m2.zoom == 9.0
+    m2.center = [6.0, -75.0]
+    m2._notify()
+    assert m1.center == [6.0, -75.0]
+    print('OK link_map_views (fake)')
+
+
+def test_link_map_views_leafmap_live():
+    try:
+        import leafmap
+    except Exception as err:
+        print(f'SKIP leafmap live: {err}')
+        return
+
+    m1 = leafmap.Map(center=[4.5, -73.0], zoom=6)
+    m2 = leafmap.Map(center=[4.5, -73.0], zoom=6)
+    view_lock = {'busy': False}
+
+    def link_map_views(src_map, dst_map):
+        if view_lock['busy']:
+            return
+        new_center = [float(src_map.center[0]), float(src_map.center[1])]
+        new_zoom = float(src_map.zoom)
+        old_center = [float(dst_map.center[0]), float(dst_map.center[1])]
+        old_zoom = float(dst_map.zoom)
+        if new_center == old_center and abs(new_zoom - old_zoom) < 1e-9:
+            return
+        view_lock['busy'] = True
+        try:
+            dst_map.center = new_center
+            dst_map.zoom = new_zoom
+        finally:
+            view_lock['busy'] = False
+
+    m1.observe(lambda ch: link_map_views(m1, m2), names=['center', 'zoom'])
+    m2.observe(lambda ch: link_map_views(m2, m1), names=['center', 'zoom'])
+
+    m1.center = [5.2, -74.1]
+    assert list(m2.center) == [5.2, -74.1]
+    m1.zoom = 9
+    assert float(m2.zoom) == 9.0
+    m2.center = [6.0, -75.0]
+    assert list(m1.center) == [6.0, -75.0]
+    print('OK link_map_views (leafmap live)')
+
+
 if __name__ == '__main__':
     test_map_cell_structure()
     test_tabla_html_top15()
     test_plantacion_antes_bosque_describe()
+    test_link_map_views_logic()
+    test_link_map_views_leafmap_live()
     print('TODAS OK')
