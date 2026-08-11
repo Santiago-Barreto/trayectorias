@@ -36,6 +36,8 @@ def test_map_cell_structure():
     assert 'COLORES_BOSQUE' in src and 'COLORES_RESTO' in src
     assert 'm_orig.on_interaction' in src
     assert 'm_corr.on_interaction' in src
+    assert 'poner_marcador(lat, lon)' in src
+    assert '_poner_marcador_en(m_orig' in src and '_poner_marcador_en(m_corr' in src
     print('OK estructura mapas original + residuales')
 
 
