@@ -21,10 +21,12 @@ def test_map_cell_structure():
             break
     assert src, 'map cell missing'
     ast.parse(src)
-    assert 'm_corr' not in src
     assert '_sync_maps' not in src
+    assert 'm_corr' in src and 'm_orig' in src
+    assert 'refrescar_capas_corr' in src
     assert 'construir_capa_ventana' in src
     assert 'year_selector' in src
+    assert 'year_selector_corr' in src
     assert 'agregar_capas_anio' in src
     assert 'Calcular tabla' in src
     assert 'add_ee_layer' in src
@@ -32,7 +34,8 @@ def test_map_cell_structure():
     assert "grupo == 'bosque'" in src or 'grupo == "bosque"' in src
     assert 'COLORES_BOSQUE' in src and 'COLORES_RESTO' in src
     assert 'm_orig.on_interaction' in src
-    print('OK estructura mapa único')
+    assert 'm_corr.on_interaction' in src
+    print('OK estructura mapas original + residuales')
 
 
 def test_tabla_html_top15():
