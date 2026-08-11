@@ -174,14 +174,20 @@ def resumen_por_clase(serie: pd.DataFrame) -> pd.DataFrame:
     g = serie.groupby(['clase', 'nombre'], as_index=False).agg(
         ha_media_original=('ha_original', 'mean'),
         ha_media_corregida=('ha_corregida', 'mean'),
-        delta_media=('delta_ha', 'mean'),
+        ha_total_original=('ha_original', 'sum'),
+        ha_total_corregida=('ha_corregida', 'sum'),
+        delta_neto=('delta_ha', 'sum'),
         delta_abs_max=('delta_ha', lambda s: s.abs().max()),
     )
     g['delta_pct'] = g.apply(
-        lambda r: None if r['ha_media_original'] == 0 else 100 * r['delta_media'] / r['ha_media_original'],
+        lambda r: (
+            None if r['ha_total_original'] == 0
+            else 100 * r['delta_neto'] / r['ha_total_original']
+        ),
         axis=1,
     )
-    return g.sort_values('delta_abs_max', ascending=False).reset_index(drop=True)
+    g['delta_abs_neto'] = g['delta_neto'].abs()
+    return g.sort_values('delta_abs_neto', ascending=False).reset_index(drop=True)
 
 
 def _tabla_texto(df: pd.DataFrame, titulo: str, meta: str = '') -> str:
@@ -201,27 +207,32 @@ def _fmt_celda(v: float) -> str:
         return '0.0'
 
 
+def _fmt_delta(v: float) -> str:
+    try:
+        return f'{float(v):+,.1f}'
+    except (TypeError, ValueError):
+        return '+0.0'
+
 
 def formatear_resumen(resumen: pd.DataFrame, ambito: str) -> pd.DataFrame:
     out = resumen.copy()
     out['clase'] = out['clase'].astype(int)
     out['ha_media_original'] = out['ha_media_original'].map(_fmt_celda)
     out['ha_media_corregida'] = out['ha_media_corregida'].map(_fmt_celda)
-    out['delta_media'] = out['delta_media'].map(lambda v: f'{float(v):+,.1f}')
+    out['delta_neto'] = out['delta_neto'].map(_fmt_delta)
     out['delta_pct'] = out['delta_pct'].apply(
         lambda v: '' if v is None or (isinstance(v, float) and v != v) else f'{float(v):+.2f}%'
     )
-    cols = ['clase', 'nombre', 'ha_media_original', 'ha_media_corregida', 'delta_media', 'delta_pct']
+    cols = ['clase', 'nombre', 'ha_media_original', 'ha_media_corregida', 'delta_neto', 'delta_pct']
     return out[cols]
-
 
 
 def html_resumen(resumen: pd.DataFrame, ambito: str) -> str:
     df = formatear_resumen(resumen, ambito)
     return _tabla_texto(
         df,
-        f'Coberturas · media anual (ha) · {ambito}',
-        'pixelArea/1e4 · ROI id_regionC',
+        f'Coberturas · {ambito}',
+        'ha media anual · delta_neto = suma (corregida - original) · pixelArea/1e4',
     )
 
 
@@ -232,17 +243,25 @@ def html_tabla_anual(serie: pd.DataFrame, ambito: str) -> str:
         col = _id_col(int(cid))
         nombre = serie.loc[serie['clase'] == cid, 'nombre'].iloc[0]
         sub = serie[serie['clase'] == cid].sort_values('year')
-        orig = pd.DataFrame({
-            'year': sub['year'].astype(int),
-            col: sub['ha_original'].map(_fmt_celda),
+        ha_o = sub['ha_original'].astype(float)
+        ha_c = sub['ha_corregida'].astype(float)
+        delta = ha_c - ha_o
+        tabla = pd.DataFrame({
+            'year': sub['year'].astype(int).astype(str),
+            'original': ha_o.map(_fmt_celda),
+            'corregida': ha_c.map(_fmt_celda),
+            'delta': delta.map(_fmt_delta),
         })
-        corr = pd.DataFrame({
-            'year': sub['year'].astype(int),
-            col: sub['ha_corregida'].map(_fmt_celda),
-        })
-        meta = f'{col} · {nombre} · ha = pixelArea/1e4'
-        bloques.append(_tabla_texto(orig, f'ORIGINAL · {col} · {ambito}', meta))
-        bloques.append(_tabla_texto(corr, f'CORREGIDA · {col} · {ambito}', meta))
+        total = pd.DataFrame([{
+            'year': 'total',
+            'original': _fmt_celda(ha_o.sum()),
+            'corregida': _fmt_celda(ha_c.sum()),
+            'delta': _fmt_delta(delta.sum()),
+        }])
+        tabla = pd.concat([tabla, total], ignore_index=True)
+        titulo = f'{col} · {nombre} · {ambito}'
+        meta = 'original vs corregida · ha = pixelArea/1e4'
+        bloques.append(_tabla_texto(tabla, titulo, meta))
     return '\n'.join(bloques)
 
 
@@ -259,7 +278,7 @@ def fig_plotly_coberturas(serie: pd.DataFrame, ambito: str):
         row_heights=[0.62, 0.38],
         subplot_titles=(
             f'Serie anual por cobertura · {ambito}',
-            'Δ media anual (corregida − original)',
+            'Δ neto (suma de años: corregida − original)',
         ),
         vertical_spacing=0.12,
     )
@@ -292,13 +311,13 @@ def fig_plotly_coberturas(serie: pd.DataFrame, ambito: str):
 
     n_serie = 2 * len(clases)
 
-    colors = ['#2f855a' if v >= 0 else '#c05621' for v in resumen['delta_media']]
+    colors = ['#2f855a' if v >= 0 else '#c05621' for v in resumen['delta_neto']]
     fig.add_trace(
         go.Bar(
             x=[labels[int(c)] for c in resumen['clase']],
-            y=resumen['delta_media'],
+            y=resumen['delta_neto'],
             marker_color=colors,
-            name='Δ media',
+            name='Δ neto',
             showlegend=False,
             hovertemplate='%{x}<br>%{y:,.1f} ha<extra></extra>',
         ),
@@ -338,7 +357,7 @@ def fig_plotly_coberturas(serie: pd.DataFrame, ambito: str):
         legend=dict(orientation='h', yanchor='bottom', y=1.02, x=0),
     )
     fig.update_yaxes(title_text='ha', row=1, col=1)
-    fig.update_yaxes(title_text='Δ ha', row=2, col=1)
+    fig.update_yaxes(title_text='Δ neto (ha)', row=2, col=1)
     fig.update_xaxes(title_text='Año', row=1, col=1)
     return fig
 

@@ -23,10 +23,12 @@ def test_map_cell_structure():
     ast.parse(src)
     assert 'm_corr' not in src
     assert '_sync_maps' not in src
-    assert 'construir_capa_tipos' in src
-    assert 'agregar_capa_tipos(m_orig' in src
+    assert 'construir_capa_ventana' in src
+    assert 'year_selector' in src
+    assert 'agregar_capas_anio' in src
     assert 'Calcular tabla' in src
-    assert src.count('add_ee_layer') <= 2
+    assert 'add_ee_layer' in src
+    assert 'for ventana in (3, 4, 5)' in src
     assert 'm_orig.on_interaction' in src
     print('OK estructura mapa único')
 

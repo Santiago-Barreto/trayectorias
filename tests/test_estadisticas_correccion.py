@@ -30,12 +30,15 @@ def test_html_anual():
             'ha_original': 500.0, 'ha_corregida': 490.0, 'delta_ha': -10.0,
         })
     txt = ec.html_tabla_anual(pd.DataFrame(rows), 'Region X')
-    assert 'ORIGINAL · ID03' in txt and 'CORREGIDA · ID03' in txt
-    assert 'ORIGINAL · ID21' in txt and 'CORREGIDA · ID21' in txt
-    assert '1,000.0' in txt and 'Bosque' in txt
+    assert 'ID03 · Bosque · Region X' in txt
+    assert 'ID21 · Mosaico · Region X' in txt
+    assert 'ORIGINAL ·' not in txt and 'CORREGIDA ·' not in txt
+    assert '1,000.0' in txt and '1,010.0' in txt
+    assert 'original' in txt and 'corregida' in txt and 'delta' in txt
+    assert 'total' in txt
+    assert '2,000.0' in txt and '2,020.0' in txt  # totales ID03
     assert '<table' not in txt
-    # cada bloque debe ser year + una sola columna ID
-    assert txt.count('year') >= 4
+    assert txt.count('year') == 2  # un encabezado por clase
     print('OK texto anual por ID')
 
 
@@ -47,8 +50,11 @@ def test_resumen_y_plotly_offline():
     serie = pd.DataFrame(rows)
     resumen = ec.resumen_por_clase(serie)
     assert set(resumen['clase']) == {3, 21}
+    assert 'delta_neto' in resumen.columns and 'delta_media' not in resumen.columns
+    r3 = resumen.loc[resumen['clase'] == 3].iloc[0]
+    assert abs(float(r3['delta_neto']) - 20.0) < 1e-9  # 10+10
     txt = ec.html_resumen(resumen, 'Region X')
-    assert 'Bosque' in txt and 'Mosaico' in txt and '<table' not in txt
+    assert 'Bosque' in txt and 'Mosaico' in txt and 'delta_neto' in txt and '<table' not in txt
     fig = ec.fig_plotly_coberturas(serie, 'Region X')
     assert fig is not None and len(fig.data) >= 3
     print('OK resumen/plotly')
