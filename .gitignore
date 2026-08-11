@@ -4,15 +4,21 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Salidas generadas
+# Documentación interna (local)
+EXPLICACION.txt
+
+# Salidas
 outputs/
 !outputs/.gitkeep
 
-# Temporales de desarrollo
-_map_cell.py
-_dump*.py
-_patch*.py
-_check*.py
-_rewrite*.py
-_fix*.py
-_reorg*.py
+# Secretos / config local
+.env
+.env.*
+**/*service-account*.json
+**/*credentials*.json
+**/*.private-key.json
+config/local.json
+
+# Temporales de desarrollo (raíz)
+/_*.py
+/_*.txt

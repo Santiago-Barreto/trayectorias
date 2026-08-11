@@ -333,7 +333,7 @@ def analizar_nacional(
     fig.subplots_adjust(left=0.16)
     _mostrar(fig, show)
 
-    # 4. Concentración + extensión geográfica
+    # Concentración + extensión geográfica
     fig, axes = plt.subplots(1, 2, figsize=(13, 5.2))
     x = np.arange(1, len(cum) + 1)
     axes[0].fill_between(x, cum.values, color=COLOR_1A, alpha=0.12)
@@ -448,7 +448,7 @@ def analizar_region(
     print(f'  Anio pico:           {int(pico["year"])} -> {int(pico["pixeles"]):,} px '
           f'({pico["pct_del_nacional"]:.2f}% de los anomalos del pais ese anio)')
 
-    # 1. KPIs regionales + tipo
+    # KPIs regionales
     fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.8), gridspec_kw={'width_ratios': [1.05, 1.25]})
     _plot_kpis(axes[0], [
         ('Región', rid),
@@ -463,7 +463,7 @@ def analizar_region(
     fig.tight_layout()
     _mostrar(fig, show)
 
-    # 2. Anual región vs contexto nacional
+    # Anual región vs nacional
     fig, axes = plt.subplots(2, 1, figsize=(13, 8.6), sharex=True, gridspec_kw={'height_ratios': [1.15, 1]})
     ax = axes[0]
     ax.fill_between(anual['year'], anual['pixeles'], color=COLOR_REG, alpha=0.18)
@@ -492,7 +492,7 @@ def analizar_region(
     fig.tight_layout()
     _mostrar(fig, show)
 
-    # 3. Top patrones de la región + peso en el nacional
+    # Top patrones región
     top = reg_pat.head(10)
     fig, axes = plt.subplots(1, 2, figsize=(13, 5.8), gridspec_kw={'width_ratios': [1.15, 1]})
     y = np.arange(len(top))
@@ -522,7 +522,7 @@ def analizar_region(
                      va='center', fontsize=8.5, color='#4a5568')
     axes[1].set_xlim(0, max(top['share_nac'].max() * 1.35, 5))
 
-    # Leyenda única debajo, sin tapar barras
+    # Leyenda debajo
     handles = [mpatches.Patch(color=TIPO_COLOR[t], label=TIPO_SHORT[t]) for t in TIPO_ORDEN]
     handles.append(mpatches.Patch(color=COLOR_PESO, label=f'Aporte de {rid}'))
     fig.legend(handles=handles, loc='lower center', ncol=4, fontsize=9,
