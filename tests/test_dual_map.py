@@ -23,6 +23,7 @@ def test_map_cell_structure():
     ast.parse(src)
     assert '_sync_maps' not in src
     assert '_link_map_views' in src
+    assert '_schedule_view_link' in src
     assert 'm_corr' in src and 'm_orig' in src
     assert 'refrescar_capas_corr' in src
     assert 'construir_capa_ventana' in src
@@ -158,10 +159,63 @@ def test_link_map_views_leafmap_live():
     print('OK link_map_views (leafmap live)')
 
 
+def test_schedule_view_link_debounce():
+    import threading
+    import time as _time
+
+    class FakeMap:
+        def __init__(self, center, zoom):
+            self.center = list(center)
+            self.zoom = float(zoom)
+
+    view_lock = {'busy': False, 'timer': None, 'pending': None, 'applies': 0}
+
+    def link_map_views(src_map, dst_map):
+        if view_lock['busy']:
+            return
+        new_center = [float(src_map.center[0]), float(src_map.center[1])]
+        new_zoom = float(src_map.zoom)
+        view_lock['busy'] = True
+        try:
+            dst_map.center = new_center
+            dst_map.zoom = new_zoom
+            view_lock['applies'] += 1
+        finally:
+            view_lock['busy'] = False
+
+    def flush():
+        view_lock['timer'] = None
+        pending = view_lock.get('pending')
+        if not pending:
+            return
+        view_lock['pending'] = None
+        link_map_views(*pending)
+
+    def schedule(src_map, dst_map):
+        view_lock['pending'] = (src_map, dst_map)
+        old = view_lock.get('timer')
+        if old is not None:
+            old.cancel()
+        timer = threading.Timer(0.05, flush)
+        timer.daemon = True
+        view_lock['timer'] = timer
+        timer.start()
+
+    m1, m2 = FakeMap([4.5, -73.0], 6), FakeMap([4.5, -73.0], 6)
+    for z in (7, 8, 9, 10):
+        m1.zoom = z
+        schedule(m1, m2)
+    _time.sleep(0.2)
+    assert view_lock['applies'] == 1, view_lock['applies']
+    assert m2.zoom == 10.0
+    print('OK debounce view link')
+
+
 if __name__ == '__main__':
     test_map_cell_structure()
     test_tabla_html_top15()
     test_plantacion_antes_bosque_describe()
     test_link_map_views_logic()
     test_link_map_views_leafmap_live()
+    test_schedule_view_link_debounce()
     print('TODAS OK')
