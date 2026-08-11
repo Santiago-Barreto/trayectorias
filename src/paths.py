@@ -10,6 +10,7 @@ SRC = ROOT / 'src'
 LEYENDA = DATA / 'leyenda_coleccion3.json'
 REGIONES = DATA / 'regiones.xlsx'
 CSV_ANOMALIAS = OUTPUTS / 'trayectorias_imposibles_por_region.csv'
+CSV_COBERTURAS = OUTPUTS / 'coberturas_ha_por_region.csv'
 TEST_FIGS = OUTPUTS / 'test_figs'
 
 OUTPUTS.mkdir(exist_ok=True)

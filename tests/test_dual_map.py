@@ -8,83 +8,65 @@ sys.path.insert(0, str(ROOT / 'src'))
 import ast
 import json
 
-import pandas as pd
 
-
-def test_map_cell_structure():
+def _map_src():
     nb = json.loads((ROOT / 'Trayectorias_sos.ipynb').read_text(encoding='utf-8'))
     src = None
     for c in nb['cells']:
         s = ''.join(c.get('source', []))
-        if 'm_orig' in s and 'leafmap' in s:
+        if 'm_orig' in s and 'leafmap' in s and 'construir_capas_anio' in s:
             src = s
             break
+    return src
+
+
+def test_map_cell_structure():
+    src = _map_src()
     assert src, 'map cell missing'
+    assert 'm_corr_map' not in src
     ast.parse(src)
-    assert 'm_corr' not in src
-    assert '_sync_maps' not in src
-    assert '_link_map_views' not in src
-    assert 'year_selector_corr' not in src
-    assert 'refrescar_capas_corr' not in src
-    assert 'construir_capa_ventana' in src
     assert 'construir_capas_anio' in src
+    assert 'construir_capas_general' in src
+    assert 'construir_capa_ventana' not in src
+    assert 'construir_trayectorias_anio' not in src
+    assert 'vista_selector' in src
     assert 'year_selector' in src
     assert 'agregar_capas_anio' in src
-    assert 'Calcular tabla' in src
+    assert '_capas_para_vista' in src
+    assert 'Mostrar tablas' in src
     assert src.count('mapa.add_ee_layer') == 1
     assert "LAYER_NAMES = ['bosque', 'resto']" in src
-    assert 'for ventana in (3, 4, 5)' in src or 'for ventana in (5, 4, 3)' in src
-    assert "grupo == 'bosque'" in src or 'grupo == "bosque"' in src
-    assert 'COLORES_BOSQUE' in src and 'COLORES_RESTO' in src
-    assert 'VIS_BOSQUE' in src and 'VIS_RESTO' in src
     assert 'm_orig.on_interaction' in src
-    assert 'poner_marcador(lat, lon)' in src
-    print('OK estructura mapa original optimizado')
+    assert 'agregar_capas_anio(m_orig, IMG_ORIGINAL' in src
+    print('OK estructura mapa')
 
 
-def test_tabla_html_top15():
-    df = pd.DataFrame({
-        'trayectoria': [f't{i}' for i in range(20)],
-        'tipo': ['Bosque aislado 1 año'] * 20,
-        'pixeles': list(range(20, 0, -1)),
-    })
-    show = df.head(15)
-    assert len(show) == 15
-    assert show.iloc[0]['pixeles'] == 20
-    print('OK top15')
-
-
-def test_plantacion_antes_bosque_describe():
+def test_tablas_antes_despues_general_anual():
+    src = _map_src()
+    assert 'table_vista' in src
+    assert 'table_html_orig' in src and 'table_html_corr' in src
+    assert 'agregar_patrones_local' in src
+    assert 'DF_PATRONES_ORIG' in src and 'DF_PATRONES_CORR' in src
     nb = json.loads((ROOT / 'Trayectorias_sos.ipynb').read_text(encoding='utf-8'))
-    fn = ''
+    load = ''
     for c in nb['cells']:
         s = ''.join(c.get('source', []))
-        if 'def anomalia_plantacion' in s and 'antes_1' in s:
-            fn = s
+        if 'DF_PATRONES_ORIG = df_patrones_desde_hist' in s:
+            load = s
             break
-    assert 'antes_1' in fn and 'antes_2' in fn
-    assert 'Plantación corta antes de bosque' in fn
-    print('OK regla plantación antes de bosque presente')
+    assert load and 'histogramas_trayectorias_por_anio' in load
+    print('OK tablas locales orig+corr')
 
 
-def test_capa_ventana_value_priority():
-    """Ventana corta debe prevalecer si hubiera solape (orden 5→4→3)."""
-    capa = 0
-    for ventana, hit in ((5, False), (4, True), (3, True)):
-        if hit:
-            capa = ventana
-    assert capa == 3
-    capa = 0
-    for ventana, hit in ((5, True), (4, False), (3, False)):
-        if hit:
-            capa = ventana
-    assert capa == 5
-    print('OK prioridad ventana en capa')
+def test_html_tabla_top5_en_mapa():
+    src = _map_src()
+    assert 'df.head(5)' in src
+    assert 'top 5' in src.lower()
+    print('OK top5 en mapa')
 
 
 if __name__ == '__main__':
     test_map_cell_structure()
-    test_tabla_html_top15()
-    test_plantacion_antes_bosque_describe()
-    test_capa_ventana_value_priority()
+    test_tablas_antes_despues_general_anual()
+    test_html_tabla_top5_en_mapa()
     print('TODAS OK')

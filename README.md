@@ -36,13 +36,12 @@ Ejecutar el notebook en orden: conexión → configuración → funciones → ca
 |-----------|---------|
 | `REGION_ID` | `None` (nacional) o ID (ej. `30450`) |
 | `VERSION_INPUT` | `1` / `>1` / `None` (auto) |
-| `MODO_CORRECCION` | `bosque` \| `todas` |
-| `MAPA_ANOMALIAS` | `bosque` \| `bosque_plantacion` \| `todas` |
+| `MAPA_ANOMALIAS` | `bosque` \| `bosque_plantacion` \| `todas` (solo filtro del mapa) |
+| `REEXPORTAR_STATS` | `False` lee CSV coberturas; `True` recalcula GEE y actualiza CSV |
 
-- **`bosque`**: corrige bosque aislado 1–2 años y plantación corta (9/35/74).
-- **`todas`**: rellena huecos A–X–A / A–XX–A / A–XXX–A según prioridad de clases, más el residual bosque↔plantación.
+**Corrección (única):** huecos 1–2 años en bosque y 9/35/74; islas cortas → contexto.
 
-Con `REGION_ID`: estadísticas de cobertura (ha, original vs corregida, delta neto) y mapa por año con capas de ventana 3/4/5. Sin él: mosaico nacional (sin mapa/stats pesados).
+CSV coberturas: `outputs/coberturas_ha_por_region.csv` (una vez por región; luego sin GEE).
 
 ## Módulos
 

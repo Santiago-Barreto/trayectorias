@@ -82,9 +82,46 @@ def test_vector_c3_overlap():
     print(f"OK ROI C3 overlap · 2020 = {ha:,.1f} ha")
 
 
+def test_parity_batch_vs_por_clase():
+    """areas_todas_clases (1 getInfo) ≡ area_clase_por_anio para clase 3."""
+    ee.Initialize(project="mapbiomas-colombia")
+    img = ee.Image(ASSET)
+    geo = (
+        ee.FeatureCollection(VECTOR_OK)
+        .filter(ee.Filter.eq("id_regionC", 30450))
+        .geometry()
+    )
+    bands = ["classification_1985", "classification_2020"]
+    old = ec.area_clase_por_anio(img, bands, geo, 3, scale=30)
+    batch = ec.areas_todas_clases(img, bands, geo, clases=[3], etiqueta="test", scale=30)
+    merged = old.merge(batch[["year", "clase", "ha"]], on=["year", "clase"], suffixes=("_old", "_new"))
+    for _, r in merged.iterrows():
+        assert abs(float(r["ha_old"]) - float(r["ha_new"])) < 0.05, r.to_dict()
+    print("OK parity batch vs por-clase (ID03)")
+
+
+def test_batch_una_consulta_clases():
+    ee.Initialize(project="mapbiomas-colombia")
+    img = ee.Image(ASSET)
+    geo = (
+        ee.FeatureCollection(VECTOR_OK)
+        .filter(ee.Filter.eq("id_regionC", 30450))
+        .geometry()
+    )
+    bands = ["classification_2020"]
+    df = ec.areas_todas_clases(img, bands, geo, clases=None, etiqueta="batch", scale=30)
+    assert not df.empty
+    assert set(df["year"]) == {2020}
+    assert 3 in set(df["clase"].astype(int))
+    assert float(df.loc[df["clase"] == 3, "ha"].iloc[0]) > 1000
+    print(f"OK batch 2020 · {df['clase'].nunique()} clases · bosque={df.loc[df['clase']==3,'ha'].iloc[0]:,.1f} ha")
+
+
 if __name__ == "__main__":
     test_roi_c5_sin_overlap()
     test_huella_asset_no_cero()
     test_modulo_un_anio()
     test_vector_c3_overlap()
+    test_parity_batch_vs_por_clase()
+    test_batch_una_consulta_clases()
     print("TODAS OK")

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import ee
 import pandas as pd
 import plotly.graph_objects as go
@@ -72,6 +74,7 @@ def area_clase_por_anio(
     clase: int,
     scale: int = 30,
 ) -> pd.DataFrame:
+    """Una clase × todos los años (1 getInfo). Conservado para tests puntuales."""
     area_bands = []
     for band in bands:
         img_year = imagen.select(band).int16().selfMask()
@@ -102,26 +105,108 @@ def area_clase_por_anio(
     ]
     return pd.DataFrame(rows)
 
+
 def area_bosque_por_anio(imagen, bands, geometry, scale: int = 30) -> pd.DataFrame:
     df = area_clase_por_anio(imagen, bands, geometry, CLASE_BOSQUE, scale=scale)
     return df[['year', 'ha']]
+
+
+def _groups_a_filas(year: int, groups) -> list[dict]:
+    rows = []
+    for item in groups or []:
+        try:
+            cid = int(item.get('class'))
+            ha = float(item.get('sum') or 0)
+        except (TypeError, ValueError):
+            continue
+        rows.append({'year': int(year), 'clase': cid, 'ha': ha})
+    return rows
+
+
+def _getinfo_con_reintento(obj, intentos: int = 5, espera: float = 8.0):
+    """getInfo con backoff ante 429 (Too many concurrent aggregations)."""
+    import time
+
+    ultimo = None
+    for i in range(intentos):
+        try:
+            return obj.getInfo()
+        except ee.EEException as err:
+            ultimo = err
+            msg = str(err).lower()
+            if 'too many concurrent' not in msg and '429' not in msg:
+                raise
+            pause = espera * (1.6 ** i)
+            print(f'    GEE 429 → reintento {i + 1}/{intentos} en {pause:.0f}s…', flush=True)
+            time.sleep(pause)
+    raise ultimo
 
 
 def areas_todas_clases(
     imagen,
     bands: list[str],
     geometry,
-    clases: list[int],
-    etiqueta: str,
+    clases: list[int] | None = None,
+    etiqueta: str = '',
     scale: int = 30,
+    batch_years: int = 4,
 ) -> pd.DataFrame:
-    partes = []
-    for i, cid in enumerate(clases, 1):
-        print(f'  [{etiqueta}] clase {cid} ({i}/{len(clases)})…', flush=True)
-        partes.append(area_clase_por_anio(imagen, bands, geometry, cid, scale=scale))
-    out = pd.concat(partes, ignore_index=True)
+    """Todas las clases × años, en lotes secuenciales (evita 429 concurrent aggregations).
+
+    Por año: pixelArea/1e4 + group(class). Lotes de `batch_years` (default 4).
+    """
+    n_lotes = max(1, (len(bands) + batch_years - 1) // batch_years)
+    if etiqueta:
+        print(
+            f'  [{etiqueta}] {n_lotes} consultas GEE · {len(bands)} años '
+            f'(lotes de {batch_years})…',
+            flush=True,
+        )
+
+    rows: list[dict] = []
+    for i in range(0, len(bands), batch_years):
+        chunk = bands[i:i + batch_years]
+        lote = i // batch_years + 1
+        if etiqueta:
+            print(f'    lote {lote}/{n_lotes}: {[b.split("_")[-1] for b in chunk]}', flush=True)
+
+        feats = []
+        for band in chunk:
+            year = int(band.split('_')[-1])
+            cls = imagen.select(band).rename('class').int16()
+            ha = ee.Image.pixelArea().divide(1e4).rename('ha')
+            groups = ha.addBands(cls).reduceRegion(
+                reducer=ee.Reducer.sum().group(groupField=1, groupName='class'),
+                geometry=geometry,
+                scale=scale,
+                maxPixels=1e13,
+                bestEffort=True,
+                tileScale=4,
+            )
+            feats.append(ee.Feature(None, {'year': year, 'groups': groups.get('groups')}))
+
+        info = _getinfo_con_reintento(ee.FeatureCollection(feats)) or {}
+        for f in info.get('features') or []:
+            props = f.get('properties') or {}
+            year = int(props.get('year'))
+            rows.extend(_groups_a_filas(year, props.get('groups')))
+
+    if not rows:
+        return pd.DataFrame(columns=['year', 'clase', 'ha', 'fuente'])
+
+    out = pd.DataFrame(rows)
+    if clases is not None:
+        allow = {int(c) for c in clases}
+        out = out[out['clase'].isin(allow)]
+    if clases is not None and bands:
+        years = [int(b.split('_')[-1]) for b in bands]
+        grid = pd.MultiIndex.from_product(
+            [years, [int(c) for c in clases]], names=['year', 'clase']
+        ).to_frame(index=False)
+        out = grid.merge(out, on=['year', 'clase'], how='left').fillna({'ha': 0.0})
+
     out['fuente'] = etiqueta
-    return out
+    return out.reset_index(drop=True)
 
 
 def calcular(
@@ -149,15 +234,24 @@ def calcular(
             )
         geom = geometry
 
-    print('Detectando clases presentes…')
-    clases = detectar_clases(img_original, bands, geom, scale=scale)
+    print(
+        f'Calculando áreas (pixelArea/1e4) · {len(bands)} años · '
+        f'lotes secuenciales (original + corregida)…',
+        flush=True,
+    )
+    so = areas_todas_clases(img_original, bands, geom, clases=None, etiqueta='original', scale=scale)
+    sc = areas_todas_clases(img_corregida, bands, geom, clases=None, etiqueta='corregida', scale=scale)
+
+    clases = sorted(set(so['clase'].astype(int)).union(set(sc['clase'].astype(int))))
     if not clases:
         raise ValueError('No se detectaron clases en la ROI.')
     print(f'Clases: {clases}')
 
-    print(f'Calculando áreas (pixelArea/1e4) · {len(bands)} años · {len(clases)} clases…')
-    so = areas_todas_clases(img_original, bands, geom, clases, 'original', scale=scale)
-    sc = areas_todas_clases(img_corregida, bands, geom, clases, 'corregida', scale=scale)
+    # Misma grilla year×clase en ambas fuentes (ceros donde falte)
+    years = [int(b.split('_')[-1]) for b in bands]
+    grid = pd.MultiIndex.from_product([years, clases], names=['year', 'clase']).to_frame(index=False)
+    so = grid.merge(so[['year', 'clase', 'ha']], on=['year', 'clase'], how='left').fillna({'ha': 0.0})
+    sc = grid.merge(sc[['year', 'clase', 'ha']], on=['year', 'clase'], how='left').fillna({'ha': 0.0})
 
     serie = so.rename(columns={'ha': 'ha_original'})[['year', 'clase', 'ha_original']].merge(
         sc.rename(columns={'ha': 'ha_corregida'})[['year', 'clase', 'ha_corregida']],
@@ -380,6 +474,70 @@ def _mostrar_plotly(fig) -> None:
     display(HTML(fig.to_html(include_plotlyjs=True, full_html=False)))
 
 
+COLS_CSV = [
+    'region_id', 'year', 'clase', 'nombre',
+    'ha_original', 'ha_corregida', 'delta_ha',
+]
+
+
+def serie_desde_csv(csv_path, region_id) -> pd.DataFrame | None:
+    """Carga serie de una región desde CSV; None si no hay filas."""
+    path = Path(csv_path)
+    if not path.exists():
+        return None
+    df = pd.read_csv(path, encoding='utf-8-sig')
+    if df.empty or 'region_id' not in df.columns:
+        return None
+    rid = str(region_id).strip()
+    sub = df[df['region_id'].astype(str) == rid].copy()
+    if sub.empty:
+        return None
+    need = ['year', 'clase', 'ha_original', 'ha_corregida', 'delta_ha']
+    for c in need:
+        if c not in sub.columns:
+            return None
+    if 'nombre' not in sub.columns:
+        sub['nombre'] = sub['clase'].map(lambda c: f'Clase {int(c)}')
+    return sub[['year', 'clase', 'nombre', 'ha_original', 'ha_corregida', 'delta_ha']].reset_index(drop=True)
+
+
+def guardar_serie_csv(serie: pd.DataFrame, csv_path, region_id) -> Path:
+    """Upsert de la región en el CSV maestro de coberturas."""
+    path = Path(csv_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rid = str(region_id).strip()
+    block = serie.copy()
+    block['region_id'] = rid
+    block = block[COLS_CSV]
+
+    if path.exists():
+        old = pd.read_csv(path, encoding='utf-8-sig')
+        if not old.empty and 'region_id' in old.columns:
+            old = old[old['region_id'].astype(str) != rid]
+            out = pd.concat([old, block], ignore_index=True)
+        else:
+            out = block
+    else:
+        out = block
+
+    out = out.sort_values(['region_id', 'clase', 'year']).reset_index(drop=True)
+    out.to_csv(path, index=False, encoding='utf-8-sig')
+    return path
+
+
+def _mostrar_serie(serie: pd.DataFrame, ambito: str):
+    resumen = resumen_por_clase(serie)
+    pd.set_option('display.max_rows', 500)
+    pd.set_option('display.width', 140)
+    pd.set_option('display.max_colwidth', 40)
+    print(html_resumen(resumen, ambito))
+    print(html_tabla_anual(serie, ambito))
+    fig = fig_plotly_coberturas(serie, ambito)
+    _mostrar_plotly(fig)
+    serie.attrs['resumen'] = resumen
+    return serie, fig
+
+
 def calcular_y_mostrar(
     img_original,
     img_corregida,
@@ -389,16 +547,36 @@ def calcular_y_mostrar(
     year_min: int = 1985,
     year_max: int = 2026,
     scale: int = 30,
+    csv_path=None,
+    forzar_recalculo: bool = False,
 ):
+    """Calcula o lee coberturas desde CSV (caché por región).
+
+    Si `csv_path` existe y la región ya está y `forzar_recalculo=False`,
+    no llama a GEE. Tras calcular, hace upsert en el CSV.
+    """
+    from paths import CSV_COBERTURAS
+
     if region_id is None:
         print('Estadisticas omitidas: define REGION_ID.')
         return pd.DataFrame(), None
+
+    if csv_path is None:
+        csv_path = CSV_COBERTURAS
+
+    ambito = f'Region {region_id}'
+
+    if not forzar_recalculo:
+        cached = serie_desde_csv(csv_path, region_id)
+        if cached is not None and float(cached['ha_original'].sum()) > 0:
+            print(f'Coberturas desde CSV (sin GEE): {Path(csv_path).resolve()}')
+            print(f'  región {region_id} · {len(cached):,} filas')
+            return _mostrar_serie(cached, ambito)
 
     if img_original is None or img_corregida is None:
         print('Ejecuta primero la celda de carga de datos (seccion 4).')
         return pd.DataFrame(), None
 
-    ambito = f'Region {region_id}'
     serie = calcular(
         img_original, img_corregida,
         geometry=geometry,
@@ -411,15 +589,6 @@ def calcular_y_mostrar(
         print('Resultado en 0 ha: revisa ROI/asset.')
         return serie, None
 
-    resumen = resumen_por_clase(serie)
-    pd.set_option('display.max_rows', 500)
-    pd.set_option('display.width', 140)
-    pd.set_option('display.max_colwidth', 40)
-
-    print(html_resumen(resumen, ambito))
-    print(html_tabla_anual(serie, ambito))
-
-    fig = fig_plotly_coberturas(serie, ambito)
-    _mostrar_plotly(fig)
-    serie.attrs['resumen'] = resumen
-    return serie, fig
+    out = guardar_serie_csv(serie, csv_path, region_id)
+    print(f'CSV coberturas actualizado: {out.resolve()} · región {region_id}')
+    return _mostrar_serie(serie, ambito)
