@@ -1,49 +1,53 @@
 # Trayectorias — MapBiomas Colombia
 
-Detección y corrección de trayectorias LULC anómalas (bosque / plantaciones) sobre la serie anual MapBiomas Colombia (Earth Engine).
+Detección y corrección de trayectorias anómalas en la serie anual de coberturas MapBiomas Colombia (Google Earth Engine).
 
-## Stack
-
-- Python + Jupyter (`Trayectorias_sos.ipynb`)
-- Google Earth Engine (`earthengine-api`, `geemap` / `leafmap`)
-- `pandas`, `plotly`, `matplotlib`
-
-## Layout
-
-```
-Trayectorias_sos.ipynb   # flujo principal
-src/                     # análisis y estadísticas
-data/                    # leyenda + regiones
-tests/
-outputs/                 # generado (gitignored)
-requirements.txt
-```
-
-## Setup
+## Requisitos
 
 ```bash
 pip install -r requirements.txt
-jupyter notebook Trayectorias_sos.ipynb
 ```
 
 Autenticación GEE local (`ee.Initialize`). Proyecto por defecto: `mapbiomas-colombia`.
 
-Ejecutar el notebook en orden: conexión → configuración → funciones → carga → análisis / stats / mapa.
+## Uso
 
-## Config rápida
+Abrir `Trayectorias_sos.ipynb` y ejecutar las celdas en orden.
 
-| Parámetro | Valores |
-|-----------|---------|
-| `REGION_ID` | `None` (nacional) o ID (ej. `30450`) |
-| `VERSION_INPUT` | `1` / `>1` / `None` (auto) |
-| `MAPA_ANOMALIAS` | `bosque` \| `bosque_plantacion` \| `todas` (solo filtro del mapa) |
-| `REEXPORTAR_STATS` | `False` lee CSV coberturas; `True` recalcula GEE y actualiza CSV |
+En **Configuración**, parámetros editables:
 
-**Corrección (única):** huecos 1–2 años en bosque y 9/35/74; islas cortas → contexto.
+| Parámetro | Opciones |
+|-----------|----------|
+| `FOLDER` | `FOLDER_FT` \| `FOLDER_CLASS` |
+| `REGION_ID` | `None` (nacional) \| id (ej. `30450`) |
+| `VERSION_INPUT` | `1` \| `>1` \| `None` |
+| `REEXPORTAR` | `False` \| `True` (CSV de anomalías) |
+| `REEXPORTAR_STATS` | `False` \| `True` (recalcula ha en GEE) |
+| `MAPA_ANOMALIAS` | `bosque` \| `bosque_plantacion` \| `todas` |
+| `CORREGIR_BORDES` | `False` \| `True` |
+| `VENTANAS_HUECOS` | `(3,)` \| `(3, 4)` |
 
-CSV coberturas: `outputs/coberturas_ha_por_region.csv` (una vez por región; luego sin GEE).
+## Método
 
-## Módulos
+1. Huecos de 1–2 años en bosque (clase 3) y plantaciones (9, 35, 74) se rellenan.
+2. Islas cortas (1–2 años) de bosque o plantación se sustituyen por el contexto.
+
+Patrones de ≥3 años se conservan. El notebook muestra mapa de anomalías, tablas de patrones y estadísticas de área (ha) original vs corregida.
+
+Con `REGION_ID` definido: mapa y estadísticas regionales. Con `None`: mosaico nacional (sin mapa interactivo ni stats de cobertura).
+
+Salidas en `outputs/` (CSV de anomalías y coberturas por región).
+
+## Estructura
+
+```
+Trayectorias_sos.ipynb
+src/           # rutas, análisis, estadísticas
+data/          # leyenda y regiones
+tests/
+outputs/       # generado (gitignored)
+requirements.txt
+```
 
 | Módulo | Rol |
 |--------|-----|
@@ -56,5 +60,6 @@ CSV coberturas: `outputs/coberturas_ha_por_region.csv` (una vez por región; lue
 
 ```bash
 python tests/test_dual_map.py
+python tests/test_reglas_correccion.py
 python tests/test_estadisticas_correccion.py
 ```
