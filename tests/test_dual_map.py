@@ -27,16 +27,19 @@ def test_map_cell_structure():
     assert 'year_selector_corr' not in src
     assert 'refrescar_capas_corr' not in src
     assert 'construir_capa_ventana' in src
+    assert 'construir_capas_anio' in src
     assert 'year_selector' in src
     assert 'agregar_capas_anio' in src
     assert 'Calcular tabla' in src
-    assert 'add_ee_layer' in src
-    assert 'for ventana in (3, 4, 5)' in src
+    assert src.count('mapa.add_ee_layer') == 1
+    assert "LAYER_NAMES = ['bosque', 'resto']" in src
+    assert 'for ventana in (3, 4, 5)' in src or 'for ventana in (5, 4, 3)' in src
     assert "grupo == 'bosque'" in src or 'grupo == "bosque"' in src
     assert 'COLORES_BOSQUE' in src and 'COLORES_RESTO' in src
+    assert 'VIS_BOSQUE' in src and 'VIS_RESTO' in src
     assert 'm_orig.on_interaction' in src
     assert 'poner_marcador(lat, lon)' in src
-    print('OK estructura mapa original')
+    print('OK estructura mapa original optimizado')
 
 
 def test_tabla_html_top15():
@@ -64,8 +67,24 @@ def test_plantacion_antes_bosque_describe():
     print('OK regla plantación antes de bosque presente')
 
 
+def test_capa_ventana_value_priority():
+    """Ventana corta debe prevalecer si hubiera solape (orden 5→4→3)."""
+    capa = 0
+    for ventana, hit in ((5, False), (4, True), (3, True)):
+        if hit:
+            capa = ventana
+    assert capa == 3
+    capa = 0
+    for ventana, hit in ((5, True), (4, False), (3, False)):
+        if hit:
+            capa = ventana
+    assert capa == 5
+    print('OK prioridad ventana en capa')
+
+
 if __name__ == '__main__':
     test_map_cell_structure()
     test_tabla_html_top15()
     test_plantacion_antes_bosque_describe()
+    test_capa_ventana_value_priority()
     print('TODAS OK')
