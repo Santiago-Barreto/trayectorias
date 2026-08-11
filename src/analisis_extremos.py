@@ -1,4 +1,3 @@
-"""Análisis del final de la serie temporal: duración de bosque aislado (1 o 2 años)."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,7 +9,7 @@ import pandas as pd
 
 import analisis_nacional as an
 
-CSV = Path('trayectorias_imposibles_por_region.csv')
+from paths import CSV_ANOMALIAS as CSV, TEST_FIGS
 COLOR_1 = '#2b6cb0'
 COLOR_2 = '#c05621'
 COLOR_R = '#718096'
@@ -32,7 +31,6 @@ def cargar(path: Path | str | None = None) -> pd.DataFrame:
 
 
 def clasificar_ventana(df: pd.DataFrame) -> pd.DataFrame:
-    """Clasifica cada registro según la ventana t-1 … t+2."""
     out = df.copy()
     c1, c2, c3, c4 = out['clase_1'], out['clase_2'], out['clase_3'], out['clase_4']
     out['es_1_anio'] = (c2 == 3) & (c3 != 3)
@@ -106,7 +104,6 @@ def cortes_bloques_1_anio(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def analizar_extremos(df: pd.DataFrame | None = None, show: bool = True):
-    """Figuras: duración del bosque aislado y año en que finaliza el bloque."""
     an._style()
     src = cargar() if df is None else clasificar_ventana(an._ensure_trayectoria(df))
     if 'es_1_anio' not in src.columns:
@@ -217,7 +214,7 @@ def analizar_extremos(df: pd.DataFrame | None = None, show: bool = True):
 
 if __name__ == '__main__':
     analizar_extremos(show=False)
-    out = Path('_test_figs')
+    out = TEST_FIGS
     out.mkdir(exist_ok=True)
     for i, n in enumerate(plt.get_fignums(), 1):
         fig = plt.figure(n)

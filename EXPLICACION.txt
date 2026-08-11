@@ -1,0 +1,116 @@
+EXPLICACION
+Trayectorias temporales — MapBiomas Colombia
+================================================================================
+
+1. Objetivo
+-----------
+Detectar y corregir transiciones temporales poco coherentes en la serie LULC
+anual (≈1985–2025), en especial:
+
+  • Bosque (3) solo 1–2 años consecutivos.
+  • Plantaciones (9, 35, 74) cortas entre bosque o seguidas de bosque.
+
+
+2. Estructura del proyecto
+--------------------------
+  Trayectorias_sos.ipynb   flujo principal
+  EXPLICACION.txt          este documento
+  requirements.txt
+  src/                     módulos Python
+    paths.py               rutas data/ y outputs/
+    analisis_nacional.py
+    analisis_extremos.py
+    estadisticas_correccion.py
+  data/
+    leyenda_coleccion3.json
+    regiones.xlsx
+  tests/                   pruebas
+  outputs/                 CSV y figuras generadas
+
+
+3. Uso
+------
+  pip install -r requirements.txt
+  jupyter notebook Trayectorias_sos.ipynb
+
+Parámetros (celda de configuración):
+
+  REGION_ID          None = nacional; o ID de región
+  VERSION_INPUT      None = máxima en FOLDER_FT (excluye 11, 99)
+  MODO_CORRECCION    bosque | todas
+  MAPA_ANOMALIAS     bosque | bosque_plantacion
+  REEXPORTAR         regenera outputs/trayectorias_imposibles_por_region.csv
+
+
+4. Modos de corrección
+----------------------
+A) bosque
+   Solo bosque aislado 1–2 años y plantación corta 9/35/74.
+   Varias pasadas (PASADAS_BOSQUE_RESIDUAL, default 2).
+
+B) todas
+   1) Rellena huecos A–X–A / A–XX–A / A–XXX–A según PRIORIDAD_CLASES
+      (ejecución = reversed(prioridad): mayor prioridad gana al final).
+   2) Residual bosque↔plantación igual que el modo bosque.
+   CORREGIR_BORDES=False por defecto (no inventa continuidad en extremos).
+
+C) Script GEE manual (fuera del notebook)
+   Listas ordem_exec_first / last / middle editables.
+   Mismo tipo de ventanas; sin residual plantación→bosque salvo que se agregue.
+
+
+5. Detección y reemplazo (modo bosque)
+--------------------------------------
+Bosque aislado
+  1 año:  ≠3 → 3 → ≠3
+  2 años: ≠3 → 3 → 3 → ≠3
+  Persistente si dura ≥3 años.
+
+Reemplazo del bosque aislado:
+  1) clase en t−1
+  2) si t+1 ∈ {9,35,74} → esa plantación
+  3) en bloque de 2 años, si t+1=3 y t+2∈ plantación → t+2
+
+Plantación corta → pasa a 3 si:
+  • entre bosque 1–2 años, o
+  • 1–2 años y después bosque.
+
+
+6. Matriz PRIORIDAD_CLASES (modo todas)
+---------------------------------------
+Síntesis para gap-fill (específico/estable > residual):
+
+  A  34, 30, 75, 24           transversales / infra
+  B  32, 23, 5, 31, 33        costa / agua
+  C  11, 6, 82                inundables (exc. CO sobre 21/25; 6 sobre 12/13)
+  D  29, 68                   sustratos
+  E  9, 40, 74, 35            agro específico (40 antes de perennes)
+  F  21, 25                   residuales
+  G  81, 13, 12, 3, 49, 50    naturales (bosque bajo)
+
+Fuentes: ATBD Colombia Col.3 Tabla 12 + excepciones; apéndices Manglares/Minería;
+MapBiomas Brasil Col.9 Annex V / Agriculture.
+
+
+7. Estadísticas de cobertura
+----------------------------
+Solo con REGION_ID definido (nacional se omite: demasiado pesado).
+Método: pixelArea()/1e4 sobre ROI id_regionC, una agregación por clase.
+Tablas texto ORIGINAL/CORREGIDA por ID + gráfico Plotly.
+
+
+8. Casos no corregidos
+----------------------
+  • Transiciones fuera de los patrones anteriores.
+  • Bosque ≥3 años.
+  • Plantaciones ≥3 años o no rodeadas/seguidas de bosque según reglas.
+  • En modo bosque: no se rellenan huecos de otras clases.
+
+
+9. Referencias
+--------------
+MapBiomas Colombia ATBD Colección 3 (Tabla 12, excepciones inundables).
+Apéndices regionales Manglares / Minería.
+MapBiomas Brasil ATBD Collection 9 (Annex V, Agriculture).
+
+================================================================================

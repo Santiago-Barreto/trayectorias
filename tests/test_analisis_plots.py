@@ -1,21 +1,19 @@
-"""Pruebas del análisis: leyendas legibles, métricas correctas y modos separados."""
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'src'))
 
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(ROOT))
-
 import analisis_nacional as an
-
-OUT = ROOT / '_test_figs'
-OUT.mkdir(exist_ok=True)
+from paths import TEST_FIGS as OUT
+OUT.mkdir(parents=True, exist_ok=True)
 TOTAL = 1_283_824_234
 
 

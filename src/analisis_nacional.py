@@ -1,7 +1,5 @@
-"""Análisis de trayectorias imposibles: modo nacional o por región."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import matplotlib.patches as mpatches
@@ -11,8 +9,7 @@ import numpy as np
 import pandas as pd
 from IPython.display import display
 
-CSV_REGION = Path('trayectorias_imposibles_por_region.csv')
-LEYENDA_PATH = Path('leyenda_coleccion3.json')
+from paths import CSV_ANOMALIAS as CSV_REGION
 TOTAL_COLOMBIA_DEFAULT = 1_283_824_234
 
 COLOR_1A = '#2b6cb0'
@@ -32,49 +29,8 @@ TIPO_SHORT = {
 }
 TIPO_ORDEN = ['Bosque aislado 1 año', 'Bosque aislado 2 años', 'Revisar patrón']
 
-# Abreviaturas legibles para las clases más frecuentes en las trayectorias.
-ABREV_CLASES = {
-    3: 'Bosque', 5: 'Manglar', 6: 'Bosq.inund', 9: 'Silvic.', 11: 'Inundable',
-    12: 'Herbácea', 13: 'Otra NF', 21: 'Mosaico', 23: 'Playa', 24: 'Urbano',
-    25: 'Sin veg.', 29: 'Roca', 30: 'Minería', 31: 'Acuicult.', 32: 'Marea',
-    33: 'Agua', 34: 'Glaciar', 35: 'Palma', 49: 'Leñosa/ar', 50: 'Herb./ar',
-    68: 'Nat.sinveg', 74: 'Banano', 75: 'Solar', 81: 'Andina', 82: 'Andina.in',
-}
-
-
-def _cargar_nombres_clases() -> dict[int, str]:
-    if not LEYENDA_PATH.exists():
-        return {}
-    data = json.loads(LEYENDA_PATH.read_text(encoding='utf-8'))
-    salida = {}
-    for k, v in data.get('class_names', {}).items():
-        nombre = str(v)
-        if '. ' in nombre:
-            nombre = nombre.split('. ', 1)[1]
-        salida[int(k)] = nombre
-    return salida
-
-
-CLASS_NAMES = _cargar_nombres_clases()
-
-
-def _abrev(cid: int) -> str:
-    if cid in ABREV_CLASES:
-        return ABREV_CLASES[cid]
-    nombre = CLASS_NAMES.get(cid, str(cid))
-    return nombre[:10]
-
-
-def _nombres_trayectoria(tray: str) -> str:
-    try:
-        partes = [int(p) for p in str(tray).split('-')]
-    except ValueError:
-        return ''
-    return '→'.join(_abrev(p) for p in partes)
-
 
 def _style():
-    """Fuerza tema claro. Evita texto blanco si el mapa dejó dark_background activo."""
     plt.style.use('default')
     plt.rcParams.update({
         'figure.facecolor': 'white',
@@ -118,7 +74,6 @@ def _pintar_leyenda(leg):
 
 
 def _aplicar_texto_oscuro(fig):
-    """Garantiza texto/leyendas negros aunque haya fuga de estilo oscuro."""
     ink, muted = '#1a202c', '#4a5568'
     fig.patch.set_facecolor('white')
     for ax in fig.axes:
@@ -152,12 +107,10 @@ def _fmt_k(x, _pos=None):
 
 
 def _label_tray(tray: str, tipo: str | None = None) -> str:
-    """Etiqueta solo con el código numérico de la trayectoria."""
     return str(tray)
 
 
 def _anotar_pico(ax, pico, years):
-    """Anota el año pico hacia el lado con espacio disponible."""
     al_final = pico['year'] >= years.max() - (years.max() - years.min()) * 0.15
     dx, ha = (-12, 'right') if al_final else (10, 'left')
     ax.annotate(
@@ -230,7 +183,6 @@ def serie_anual_tipo(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _tabla(df: pd.DataFrame, columnas: dict[str, str], formatos: dict | None = None, n: int = 15):
-    """Muestra una tabla con nombres de columna explícitos y valores ya formateados."""
     use = [c for c in columnas if c in df.columns]
     view = df[use].head(n).copy()
     for col, fmt in (formatos or {}).items():
@@ -293,7 +245,6 @@ def analizar_nacional(
     total_colombia: int = TOTAL_COLOMBIA_DEFAULT,
     show: bool = True,
 ):
-    """Análisis agregado de todas las regiones (sin filtro REGION_ID)."""
     _style()
     src = cargar_csv() if df is None else _ensure_trayectoria(df)
     df_nac = agregar_patrones(src)
@@ -320,7 +271,6 @@ def analizar_nacional(
     print(f'  Patrones ~80% / 95%: {n80} / {n95}')
     print(f'  Anio pico:           {int(pico["year"])} -> {int(pico["pixeles"]):,} px ({pico["pct_colombia"]:.3f}% del area de Colombia)')
 
-    # 1. KPIs + composición por tipo
     fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.8), gridspec_kw={'width_ratios': [1.05, 1.25]})
     _plot_kpis(axes[0], [
         ('Regiones con datos', f'{n_reg}'),
@@ -335,7 +285,6 @@ def analizar_nacional(
     fig.tight_layout()
     _mostrar(fig, show)
 
-    # 2. Análisis anual
     fig, axes = plt.subplots(2, 1, figsize=(13, 8.6), sharex=True, gridspec_kw={'height_ratios': [1.1, 1]})
     ax = axes[0]
     ax.fill_between(anual['year'], anual['pixeles'], color=COLOR_1A, alpha=0.15)
@@ -344,7 +293,7 @@ def analizar_nacional(
     ax.scatter([pico['year']], [pico['pixeles']], color=COLOR_2A, zorder=3, s=55)
     _anotar_pico(ax, pico, anual['year'])
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_fmt_k))
-    ax.set_ylim(0, anual['pixeles'].max() * 1.3)  # espacio para la anotación del pico
+    ax.set_ylim(0, anual['pixeles'].max() * 1.3)
     ax.set_ylabel('Píxeles anómalos')
     ax.set_title('Evolución anual — volumen de anomalías y peso sobre el área del país')
     ax2 = ax.twinx()
@@ -364,7 +313,6 @@ def analizar_nacional(
     fig.tight_layout()
     _mostrar(fig, show)
 
-    # 3. Top patrones
     top = df_nac.head(15)
     fig, ax = plt.subplots(figsize=(13, 7.5))
     y = np.arange(len(top))
@@ -524,7 +472,7 @@ def analizar_region(
     ax.scatter([pico['year']], [pico['pixeles']], color=COLOR_2A, zorder=3, s=55)
     _anotar_pico(ax, pico, anual['year'])
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(_fmt_k))
-    ax.set_ylim(0, anual['pixeles'].max() * 1.3)  # espacio para la anotación del pico
+    ax.set_ylim(0, anual['pixeles'].max() * 1.3)
     ax.set_ylabel(f'Píxeles anómalos en {rid}')
     ax.set_title(f'Evolución anual · región {rid} y su aporte al total del país')
     ax2 = ax.twinx()

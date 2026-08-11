@@ -6,4 +6,5 @@ matplotlib
 numpy
 jupyter
 ipywidgets
-python-pptx
+plotly>=5.18
+nbformat>=4.2.0
