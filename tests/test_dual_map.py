@@ -29,6 +29,8 @@ def test_map_cell_structure():
     assert 'Calcular tabla' in src
     assert 'add_ee_layer' in src
     assert 'for ventana in (3, 4, 5)' in src
+    assert "grupo == 'bosque'" in src or 'grupo == "bosque"' in src
+    assert 'COLORES_BOSQUE' in src and 'COLORES_RESTO' in src
     assert 'm_orig.on_interaction' in src
     print('OK estructura mapa único')
 
