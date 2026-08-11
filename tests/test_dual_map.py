@@ -22,6 +22,7 @@ def test_map_cell_structure():
     assert src, 'map cell missing'
     ast.parse(src)
     assert '_sync_maps' not in src
+    assert '_link_map_views' in src
     assert 'm_corr' in src and 'm_orig' in src
     assert 'refrescar_capas_corr' in src
     assert 'construir_capa_ventana' in src
