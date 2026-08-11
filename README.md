@@ -28,6 +28,8 @@ jupyter notebook Trayectorias_sos.ipynb
 
 Autenticación GEE local (`ee.Initialize`). Proyecto por defecto: `mapbiomas-colombia`.
 
+Ejecutar el notebook en orden: conexión → configuración → funciones → carga → análisis / stats / mapa.
+
 ## Config rápida
 
 | Parámetro | Valores |
@@ -37,7 +39,10 @@ Autenticación GEE local (`ee.Initialize`). Proyecto por defecto: `mapbiomas-col
 | `MODO_CORRECCION` | `bosque` \| `todas` |
 | `MAPA_ANOMALIAS` | `bosque` \| `bosque_plantacion` \| `todas` |
 
-Con `REGION_ID` definido: estadísticas de cobertura (ha) y mapa por año / ventanas 3–4–5. Sin él: mosaico nacional (sin mapa/stats pesados).
+- **`bosque`**: corrige bosque aislado 1–2 años y plantación corta (9/35/74).
+- **`todas`**: rellena huecos A–X–A / A–XX–A / A–XXX–A según prioridad de clases, más el residual bosque↔plantación.
+
+Con `REGION_ID`: estadísticas de cobertura (ha, original vs corregida, delta neto) y mapa por año con capas de ventana 3/4/5. Sin él: mosaico nacional (sin mapa/stats pesados).
 
 ## Módulos
 
@@ -54,7 +59,3 @@ Con `REGION_ID` definido: estadísticas de cobertura (ha) y mapa por año / vent
 python tests/test_dual_map.py
 python tests/test_estadisticas_correccion.py
 ```
-
-## Nota
-
-La documentación operativa detallada vive en `EXPLICACION.txt` (archivo local, no versionado).
